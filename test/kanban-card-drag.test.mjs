@@ -434,6 +434,7 @@ test("board renders the slot against the remaining cards, not the dragged card",
     {
       "@getpaseo/plugin/client": {
         useSettings: () => ({ status: "ready", values: board }),
+        usePaseo: () => ({}),
       },
       "../shared/kanban": {
         filterTasksByProject: (tasks) => tasks,

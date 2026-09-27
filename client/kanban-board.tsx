@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   type LayoutChangeEvent,
 } from "react-native";
-import { useSettings } from "@getpaseo/plugin/client";
+import { useSettings, usePaseo } from "@getpaseo/plugin/client";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import {
   kanbanSettings,
@@ -90,6 +90,21 @@ export function KanbanBoardView(props: KanbanBoardProps) {
   const revision = isReady ? settings.revision : "";
 
   const [startAgentTask, setStartAgentTask] = useState<KanbanTask | null>(null);
+
+  // Agent-directory demand: handle.subscribe in useLinkedAgentStatus only
+  // listens to the local event bus; the daemon pushes agent_update messages on
+  // this connection only after a list({ subscribe: {} }) observation exists.
+  // The 0.8 SDK exposes no release for directory observations, so the
+  // observation lives as long as the borrowed host connection.
+  const paseo = usePaseo();
+  const hasLinkedAgents = useMemo(
+    () => board?.tasks.some((task) => task.agent != null) ?? false,
+    [board],
+  );
+  useEffect(() => {
+    if (!hasLinkedAgents) return;
+    void paseo.agents.list({ subscribe: {} }).catch(() => {});
+  }, [paseo, hasLinkedAgents]);
 
   // Latest board + revision for async mutations that must not capture stale
   // render state; saves use the host's optimistic concurrency check.
