@@ -13,6 +13,22 @@ export const SubtaskSchema = z.object({
   completed: z.boolean().default(false),
 });
 
+export const TaskAgentLinkSchema = z.object({
+  agentId: z.string().trim().min(1, "Agent ID cannot be empty"),
+  workspaceId: z.string().trim().min(1, "Workspace ID cannot be empty"),
+  workspaceTitle: z.string().default(""),
+  provider: z.string().trim().min(1, "Agent provider cannot be empty"),
+  target: z.enum(["worktree", "workspace"]),
+  startedAt: z
+    .string()
+    .trim()
+    .min(1, "Agent start time cannot be empty")
+    .refine((value) => !Number.isNaN(Date.parse(value)), {
+      message: "Agent start time must be an ISO timestamp",
+    }),
+  advanced: z.boolean().default(false),
+});
+
 export const TaskSchema = z.object({
   id: z.string().trim().min(1, "Task ID cannot be empty"),
   title: z.string().trim().min(1, "Task title cannot be empty"),
@@ -20,6 +36,7 @@ export const TaskSchema = z.object({
   laneId: z.string().trim().min(1, "Task lane ID cannot be empty"),
   projectId: z.string().trim().min(1).nullable().default(null),
   subtasks: z.array(SubtaskSchema).default([]),
+  agent: TaskAgentLinkSchema.nullable().default(null),
 });
 
 export const LaneSchema = z.object({
@@ -85,6 +102,7 @@ export const KanbanBoardSchema = z
   });
 
 export type KanbanSubtask = z.infer<typeof SubtaskSchema>;
+export type TaskAgentLink = z.infer<typeof TaskAgentLinkSchema>;
 export type KanbanTask = z.infer<typeof TaskSchema>;
 export type KanbanLane = z.infer<typeof LaneSchema>;
 export type KanbanBoard = z.infer<typeof KanbanBoardSchema>;
@@ -242,6 +260,7 @@ export function addTask(
     description: task.description ?? "",
     laneId: task.laneId,
     projectId: task.projectId ?? null,
+    agent: null,
     subtasks: (task.subtasks ?? []).map((s) => ({
       id: s.id.trim(),
       title: s.title.trim(),
@@ -264,6 +283,7 @@ export function updateTask(
     laneId?: string;
     projectId?: string | null;
     subtasks?: KanbanSubtask[];
+    agent?: TaskAgentLink | null;
   },
 ): KanbanBoard {
   let found = false;
@@ -291,6 +311,7 @@ export function updateTask(
         projectId:
           patch.projectId !== undefined ? patch.projectId : task.projectId,
         subtasks: patch.subtasks !== undefined ? patch.subtasks : task.subtasks,
+        agent: patch.agent !== undefined ? patch.agent : task.agent,
       };
     }
     return task;
@@ -483,4 +504,50 @@ export function reorderTask(
     lanes: board.lanes,
     tasks: nextTasks,
   });
+}
+
+export function advanceTaskToNextLane(
+  board: KanbanBoard,
+  taskId: string,
+  options?: { markAgentAdvanced?: boolean },
+): KanbanBoard {
+  const task = board.tasks.find((t) => t.id === taskId);
+  if (!task) {
+    throw new Error(`Task "${taskId}" not found`);
+  }
+  const laneIndex = board.lanes.findIndex((l) => l.id === task.laneId);
+  if (laneIndex === -1) {
+    throw new Error(`Lane "${task.laneId}" does not exist`);
+  }
+
+  let next = board;
+  const nextLane = board.lanes[laneIndex + 1];
+  if (nextLane) {
+    next = reorderTask(next, taskId, nextLane.id);
+  }
+  if (
+    options?.markAgentAdvanced === true &&
+    task.agent !== null &&
+    task.agent.advanced === false
+  ) {
+    next = updateTask(next, taskId, {
+      agent: { ...task.agent, advanced: true },
+    });
+  }
+  return next;
+}
+
+export function buildAgentPrompt(task: KanbanTask): string {
+  const lines = [task.title];
+  const description = task.description.trim();
+  if (description) {
+    lines.push("", description);
+  }
+  if (task.subtasks.length > 0) {
+    lines.push("", "Subtasks:");
+    for (const subtask of task.subtasks) {
+      lines.push(`- [${subtask.completed ? "x" : " "}] ${subtask.title}`);
+    }
+  }
+  return lines.join("\n");
 }

@@ -1,9 +1,10 @@
 import { useMemo, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Animated } from "react-native";
+import { View, Text, StyleSheet, Animated, Pressable } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import type { KanbanTask } from "../shared/kanban";
 import type { CardDragBinding } from "./kanban-drag";
+import { CardAgentBadge } from "./card-agent-badge";
 import { useI18n } from "./i18n";
 
 type PluginTheme = PluginSurfaceProps["theme"];
@@ -14,6 +15,8 @@ export interface KanbanCardProps {
   theme: PluginTheme;
   layout: { compact: boolean };
   binding: CardDragBinding;
+  onStartAgent?: (task: KanbanTask) => void;
+  onOpenAgent?: (agentId: string) => void;
 }
 
 export function KanbanCard({
@@ -22,6 +25,8 @@ export function KanbanCard({
   theme,
   layout,
   binding,
+  onStartAgent,
+  onOpenAgent,
 }: KanbanCardProps) {
   const { t } = useI18n();
   const bindingRef = useRef(binding);
@@ -67,6 +72,30 @@ export function KanbanCard({
           fontWeight: "600",
           color: theme.colors.foreground,
           userSelect: "none",
+        },
+        agentAction: {
+          paddingHorizontal: 3,
+          paddingVertical: 2,
+          borderRadius: 4,
+        },
+        agentBadge: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 4,
+          paddingHorizontal: 6,
+          paddingVertical: 2,
+          borderRadius: 10,
+          borderWidth: 1,
+          backgroundColor: theme.colors.surface1,
+        },
+        agentBadgeDot: {
+          width: 6,
+          height: 6,
+          borderRadius: 3,
+        },
+        agentBadgeText: {
+          fontSize: 11,
+          fontWeight: "500",
         },
         badgeRow: {
           flexDirection: "row",
@@ -135,6 +164,34 @@ export function KanbanCard({
           <Text style={styles.title} numberOfLines={2}>
             {task.title}
           </Text>
+
+          {task.agent ? (
+            <CardAgentBadge
+              link={task.agent}
+              theme={theme}
+              onOpenAgent={onOpenAgent}
+              styles={{
+                agentBadge: styles.agentBadge,
+                agentBadgeDot: styles.agentBadgeDot,
+                agentBadgeText: styles.agentBadgeText,
+              }}
+            />
+          ) : onStartAgent ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("agent.startForTask")}
+              hitSlop={8}
+              onTouchStart={(event) => event.stopPropagation()}
+              onPress={() => onStartAgent(task)}
+              style={styles.agentAction}
+            >
+              <Icon
+                name="Play"
+                size={13}
+                color={theme.colors.foregroundMuted}
+              />
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.badgeRow}>

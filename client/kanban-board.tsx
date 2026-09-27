@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,20 @@ import {
 } from "react-native";
 import { useSettings } from "@getpaseo/plugin/client";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
-import { kanbanSettings, filterTasksByProject } from "../shared/kanban";
+import {
+  kanbanSettings,
+  filterTasksByProject,
+  updateTask,
+  advanceTaskToNextLane,
+  type KanbanBoard,
+  type KanbanTask,
+  type TaskAgentLink,
+} from "../shared/kanban";
 import { useProjects } from "./use-projects";
 import { TaskModal } from "./task-modal";
 import { LaneModal } from "./lane-modal";
+import { StartAgentModal } from "./start-agent-modal";
+import { AgentAdvanceWatcher } from "./agent-advance-watcher";
 import { useKanbanDrag } from "./kanban-drag";
 import { KanbanLaneView } from "./kanban-lane";
 import { KanbanDragOverlay } from "./kanban-overlay";
@@ -28,6 +38,7 @@ import { useI18n } from "./i18n";
 
 interface KanbanBoardProps extends PluginSurfaceProps {
   initialProjectId?: string | null;
+  workspaceId?: string | null;
 }
 
 export function KanbanBoardView(props: KanbanBoardProps) {
@@ -77,6 +88,67 @@ export function KanbanBoardView(props: KanbanBoardProps) {
   const isReady = settings.status === "ready";
   const board = isReady ? settings.values : null;
   const revision = isReady ? settings.revision : "";
+
+  const [startAgentTask, setStartAgentTask] = useState<KanbanTask | null>(null);
+
+  // Latest board + revision for async mutations that must not capture stale
+  // render state; saves use the host's optimistic concurrency check.
+  const latestRef = useRef<{ board: KanbanBoard | null; revision: string }>({
+    board,
+    revision,
+  });
+  latestRef.current = { board, revision };
+
+  const mutateBoard = useCallback(
+    async (mutate: (base: KanbanBoard) => KanbanBoard): Promise<boolean> => {
+      const { board: base, revision: rev } = latestRef.current;
+      if (!base) return false;
+      const next = mutate(base);
+      if (next === base) return true;
+      const saved = await settings.save(next, rev);
+      if (!saved) {
+        await settings.reload();
+        setReorderError(t("kanban.agentSaveConflict"));
+      } else {
+        setReorderError(null);
+      }
+      return saved;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings.save, settings.reload, t],
+  );
+
+  const handleAgentStarted = useCallback(
+    async (taskId: string, link: TaskAgentLink) => {
+      await mutateBoard((base) =>
+        advanceTaskToNextLane(
+          updateTask(base, taskId, { agent: link }),
+          taskId,
+        ),
+      );
+      setStartAgentTask(null);
+    },
+    [mutateBoard],
+  );
+
+  const handleAgentTurnFinished = useCallback(
+    (taskId: string) => {
+      const { board: base } = latestRef.current;
+      const task = base?.tasks.find((entry) => entry.id === taskId);
+      if (!task?.agent || task.agent.advanced) return;
+      void mutateBoard((current) =>
+        advanceTaskToNextLane(current, taskId, { markAgentAdvanced: true }),
+      );
+    },
+    [mutateBoard],
+  );
+
+  const handleUnlinkAgent = useCallback(
+    async (taskId: string) => {
+      await mutateBoard((base) => updateTask(base, taskId, { agent: null }));
+    },
+    [mutateBoard],
+  );
 
   // Filter tasks based on selected project
   const filteredTasks = useMemo(() => {
@@ -593,6 +665,10 @@ export function KanbanBoardView(props: KanbanBoardProps) {
                 onAddTask={(laneId) => openNewTask(laneId)}
                 onManageLane={(laneId) => openEditLane(laneId)}
                 onSelectTask={(task) => openEditTask(task.id)}
+                onStartAgent={(task) => setStartAgentTask(task)}
+                onOpenAgent={(agentId) =>
+                  props.navigation?.openAgent({ agentId })
+                }
               />
             );
           })}
@@ -610,6 +686,21 @@ export function KanbanBoardView(props: KanbanBoardProps) {
           projects={selectableProjects}
           theme={theme}
           layout={layout}
+          agentLink={
+            activeTaskSession.mode === "edit" &&
+            activeTaskSession.initialValues.id
+              ? (board.tasks.find(
+                  (task) => task.id === activeTaskSession.initialValues.id,
+                )?.agent ?? null)
+              : null
+          }
+          onStartAgent={(taskId) => {
+            const task = board.tasks.find((entry) => entry.id === taskId);
+            if (!task) return;
+            setActiveTaskSession(null);
+            setStartAgentTask(task);
+          }}
+          onUnlinkAgent={(taskId) => void handleUnlinkAgent(taskId)}
         />
       )}
 
@@ -622,6 +713,29 @@ export function KanbanBoardView(props: KanbanBoardProps) {
           layout={layout}
         />
       )}
+
+      {startAgentTask && (
+        <StartAgentModal
+          open
+          onClose={() => setStartAgentTask(null)}
+          task={startAgentTask}
+          projects={selectableProjects}
+          defaultWorkspaceId={props.workspaceId ?? null}
+          theme={theme}
+          layout={layout}
+          onStarted={(link) => void handleAgentStarted(startAgentTask.id, link)}
+        />
+      )}
+
+      {board.tasks
+        .filter((task) => task.agent != null && task.agent.advanced === false)
+        .map((task) => (
+          <AgentAdvanceWatcher
+            key={task.id}
+            task={task}
+            onFinished={handleAgentTurnFinished}
+          />
+        ))}
     </View>
   );
 }

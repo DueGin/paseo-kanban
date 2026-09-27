@@ -1,18 +1,18 @@
 {
   "name": "paseo-kanban",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "A lightweight, responsive Kanban board plugin for Paseo workspaces",
   "type": "module",
   "license": "MIT",
   "author": "breathi3552",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/breathi3552/paseo-kanban.git"
+    "url": "git+https://github.com/DueGin/paseo-kanban.git"
   },
   "bugs": {
-    "url": "https://github.com/breathi3552/paseo-kanban/issues"
+    "url": "https://github.com/DueGin/paseo-kanban/issues"
   },
-  "homepage": "https://github.com/breathi3552/paseo-kanban#readme",
+  "homepage": "https://github.com/DueGin/paseo-kanban#readme",
   "keywords": [
     "paseo",
     "paseo-plugin",

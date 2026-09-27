@@ -7,7 +7,7 @@ import {
   ScrollView,
 } from "@getpaseo/plugin/client/react-native";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
-import type { KanbanLane } from "../shared/kanban";
+import type { KanbanLane, TaskAgentLink } from "../shared/kanban";
 import type { ProjectItem } from "./use-projects";
 import type { TaskEditSession } from "./kanban-session";
 import { useI18n } from "./i18n";
@@ -22,6 +22,9 @@ export interface TaskModalProps {
   projects: ProjectItem[];
   theme: PluginTheme;
   layout: { compact: boolean; platform: "ios" | "android" | "web" };
+  agentLink?: TaskAgentLink | null;
+  onStartAgent?: (taskId: string) => void;
+  onUnlinkAgent?: (taskId: string) => void;
 }
 
 export function TaskModal({
@@ -32,6 +35,9 @@ export function TaskModal({
   projects,
   theme,
   layout,
+  agentLink,
+  onStartAgent,
+  onUnlinkAgent,
 }: TaskModalProps) {
   const { t } = useI18n();
   const snapshot = useSyncExternalStore(
@@ -219,6 +225,38 @@ export function TaskModal({
           color: theme.colors.statusDanger,
           fontSize: 13,
           fontWeight: "500",
+        },
+        agentSection: {
+          marginTop: 12,
+          paddingTop: 12,
+          borderTopWidth: 1,
+          borderTopColor: theme.colors.border,
+          gap: 8,
+        },
+        agentLinkedRow: {
+          flexDirection: "row",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 8,
+        },
+        agentLinkedText: {
+          flex: 1,
+          fontSize: 13,
+          color: theme.colors.foregroundMuted,
+        },
+        startAgentButton: {
+          alignSelf: "flex-start",
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          borderRadius: 6,
+          borderWidth: 1,
+          borderColor: theme.colors.accent,
+          backgroundColor: theme.colors.surface1,
+        },
+        startAgentButtonText: {
+          color: theme.colors.accent,
+          fontSize: 13,
+          fontWeight: "600",
         },
       }),
     [theme, layout.compact],
@@ -457,6 +495,48 @@ export function TaskModal({
               </Pressable>
             </View>
           </View>
+
+          {/* Agent Section for Edit Mode */}
+          {session.mode === "edit" &&
+            snapshot.id &&
+            (onStartAgent || onUnlinkAgent) && (
+              <View style={styles.agentSection}>
+                <Text style={styles.label}>{t("taskModal.agentSection")}</Text>
+                {agentLink ? (
+                  <View style={styles.agentLinkedRow}>
+                    <Text style={styles.agentLinkedText} numberOfLines={1}>
+                      {t("taskModal.agentLinked", {
+                        workspace:
+                          agentLink.workspaceTitle || agentLink.workspaceId,
+                      })}
+                    </Text>
+                    {onUnlinkAgent && (
+                      <Pressable
+                        onPress={() => onUnlinkAgent(snapshot.id!)}
+                        style={styles.deleteButton}
+                        disabled={isSaving}
+                      >
+                        <Text style={styles.deleteButtonText}>
+                          {t("taskModal.unlinkAgent")}
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ) : (
+                  onStartAgent && (
+                    <Pressable
+                      onPress={() => onStartAgent(snapshot.id!)}
+                      style={styles.startAgentButton}
+                      disabled={isSaving}
+                    >
+                      <Text style={styles.startAgentButtonText}>
+                        {t("taskModal.startAgent")}
+                      </Text>
+                    </Pressable>
+                  )
+                )}
+              </View>
+            )}
 
           {/* Delete Task Section for Edit Mode */}
           {session.mode === "edit" && (

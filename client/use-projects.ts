@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 export interface ProjectItem {
   projectId: string;
   projectDisplayName: string;
+  projectRootPath?: string;
 }
 
 export type ProjectNameResolver = (

@@ -26,6 +26,8 @@ export interface KanbanLaneViewProps {
   onAddTask: (laneId: string) => void;
   onManageLane: (laneId: string) => void;
   onSelectTask: (task: KanbanTask) => void;
+  onStartAgent?: (task: KanbanTask) => void;
+  onOpenAgent?: (agentId: string) => void;
   resolveProjectName?: (projectId: string | null) => string | null;
 }
 
@@ -39,6 +41,8 @@ function KanbanLaneViewInner({
   onAddTask,
   onManageLane,
   onSelectTask,
+  onStartAgent,
+  onOpenAgent,
   resolveProjectName,
 }: KanbanLaneViewProps) {
   const { t } = useI18n();
@@ -226,6 +230,8 @@ function KanbanLaneViewInner({
                   () => onSelectTask(task),
                   PanResponder,
                 )}
+                onStartAgent={onStartAgent}
+                onOpenAgent={onOpenAgent}
               />
             </Fragment>
           ))}

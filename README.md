@@ -16,6 +16,13 @@ A lightweight, responsive Kanban board plugin for [Paseo](https://paseo.sh) work
 - **Project Filtering**: Instantly filter board cards by linked Paseo project to keep context focused.
 - **Smooth Drag-and-Drop**: Real-time hit-testing for reordering cards within lanes and moving cards across lanes.
 - **Versioned State Persistence**: Persists board data through Paseo's settings API with optimistic concurrency control (CAS) to prevent race conditions and accidental overwrites.
+- **One-Click Agent Launch** (fork addition):
+  - Press ▶ on a card (or "Start Agent" in the task editor) to open the launch panel.
+  - Choose the run location: a fresh worktree workspace branched off a project, or a new agent inside an existing workspace.
+  - Pick the agent each time (your agent profiles first, then every ready provider's models; your last choice is preselected).
+  - The first message is prefilled from the task's title, description, and subtask checklist, and is editable.
+  - On start, the card records the link and advances one lane; when the agent finishes its first turn, the card advances one more lane (once per card). A live status badge (running / needs you / error / finished) appears on linked cards and opens the agent on press; the link can be removed from the task editor.
+  - Limitation: cards only advance while a Paseo client is open — plugin server code cannot write board settings, so a turn finished while every client is closed is applied the next time a board opens.
 
 ---
 
